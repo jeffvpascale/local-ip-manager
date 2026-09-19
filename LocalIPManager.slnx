@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="LocalIPManager.Tests/LocalIPManager.Tests.csproj" Id="6635c441-3dad-4a71-83db-0c622ca2a7e3" />
   <Project Path="LocalIPManager/LocalIPManager.csproj" />
 </Solution>
