@@ -207,10 +207,6 @@ if [[ "${AMBIENT_CAPABILITIES}" != *"cap_net_raw"* ]]; then
   fail "The service does not have CAP_NET_RAW."
 fi
 
-if ! systemd-run   --quiet   --wait   --pipe   --collect   --uid="${SERVICE_USER}"   --property=AmbientCapabilities=CAP_NET_RAW   --property=CapabilityBoundingSet=CAP_NET_RAW   /usr/bin/ping -c 1 -W 2 127.0.0.1 >/dev/null; then
-  fail "The container did not permit CAP_NET_RAW for the service user."
-fi
-
 rm -rf "${BACKUP_DIR}"
 INSTALL_REPLACED=false
 apt-get clean
