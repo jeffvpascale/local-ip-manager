@@ -22,6 +22,10 @@ if [[ "${EUID}" -ne 0 ]]; then
   fail "Run this installer as root."
 fi
 
+if command -v pveversion >/dev/null 2>&1 || [[ -d /etc/pve ]]; then
+  fail "Do not run install.sh on a Proxmox host. Run create-lxc.sh there instead."
+fi
+
 case "$(uname -m)" in
   x86_64 | amd64) ;;
   *) fail "This release currently supports x86-64/amd64 containers only." ;;
