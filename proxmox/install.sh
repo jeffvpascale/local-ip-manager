@@ -83,8 +83,7 @@ if [[ ! "${REQUESTED_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   fail "Version must look like v1.0.0 or be latest."
 fi
 
-VERSION_NUMBER="${REQUESTED_VERSION#v}"
-ASSET_NAME="local-ip-manager-${VERSION_NUMBER}-linux-x64.zip"
+ASSET_NAME="local-ip-manager-${REQUESTED_VERSION}-linux-x64.zip"
 DOWNLOAD_URL="https://github.com/${REPOSITORY}/releases/download/${REQUESTED_VERSION}/${ASSET_NAME}"
 DOWNLOAD_DIR="$(mktemp -d)"
 ARCHIVE_PATH="${DOWNLOAD_DIR}/${ASSET_NAME}"
