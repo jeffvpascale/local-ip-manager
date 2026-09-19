@@ -32,6 +32,41 @@ There was no single place where I could see which addresses were already in use,
 - Linux network scans require the `iproute2` package for MAC-address lookup.
 - Linux service accounts require permission to send ICMP packets. For a systemd service, grant only the application `CAP_NET_RAW` with `AmbientCapabilities=CAP_NET_RAW` and `CapabilityBoundingSet=CAP_NET_RAW`.
 
+## Install on Proxmox
+
+Run the following command as `root` from the shell of a Proxmox VE host:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jeffvpascale/local-ip-manager/main/proxmox/create-lxc.sh -o /tmp/local-ip-manager-create-lxc.sh && bash /tmp/local-ip-manager-create-lxc.sh
+```
+
+The script displays the proposed configuration and asks for confirmation before creating anything. **Standard settings** create an unprivileged Debian 12 LXC using the next available container ID, 1 CPU core, 512 MB of memory, 512 MB of swap, a 4 GB disk, `vmbr0`, DHCP, start-at-boot, and the latest Local IP Manager release.
+
+Choose **Advanced settings** to select the container ID, hostname, CPU, memory, swap, disk size, storage, network bridge, DHCP or a static IPv4 configuration, Debian 12 or 13, and a specific application release. The installer downloads an official Linux release, configures the network-scan permission, creates and starts a systemd service, and verifies that the web application responds.
+
+When installation finishes, open the address printed by the script, normally `http://CONTAINER-IP:5000`.
+
+The installation uses these paths inside the container:
+
+- Application: `/opt/local-ip-manager`
+- SQLite database: `/var/lib/local-ip-manager/IpManagerDatabase.db`
+- Service: `local-ip-manager.service`
+
+To install the latest release over an existing installation, enter the container as `root` and run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jeffvpascale/local-ip-manager/main/proxmox/install.sh -o /tmp/local-ip-manager-install.sh && bash /tmp/local-ip-manager-install.sh latest
+```
+
+The update replaces the application files while preserving the SQLite database. If the new application fails to start, the installer restores the previous application files.
+
+To remove the installation, stop and destroy its LXC through the Proxmox web interface. The equivalent host commands are shown below; replacing `CTID` with the container ID permanently deletes the container and its database:
+
+```bash
+pct stop CTID
+pct destroy CTID --purge 1
+```
+
 ## Run from source
 
 Clone the repository and run this command from its root:
