@@ -1,0 +1,115 @@
+﻿@if (IsVisible)
+{
+    <div class="my-4 flex origin-top items-center
+                @(IsClosing ? "scale-y-0 opacity-0" : "scale-y-100 opacity-100")
+                rounded-lg border px-4 py-3 transition-all duration-300
+                @(IsSuccess
+                    ? "bg-success-bg border-success-border text-success-text"
+                    : "bg-error-bg border-error-border text-error-text")">
+
+        <i class="icon @(IsSuccess ? "icon-circle-check" : "icon-circle-alert") mr-3 !text-xl"></i>
+
+        <span class="flex-1">
+            @Message
+        </span>
+
+        <button type="button"
+                class="ml-3 cursor-pointer"
+                @onclick="Close">
+            <i class="icon icon-x !text-xl"></i>
+        </button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int DismissAfter { get; set; } = 5000;
+
+    private string Message { get; set; } = "";
+    private bool IsSuccess { get; set; }
+    private bool IsVisible { get; set; }
+    private bool IsClosing { get; set; }
+
+    private CancellationTokenSource? _dismissCancellation;
+
+    public void Show(string message, bool isSuccess)
+    {
+        _dismissCancellation?.Cancel();
+        _dismissCancellation = new CancellationTokenSource();
+
+        _ = ShowAsync(message, isSuccess, _dismissCancellation.Token);
+    }
+
+    private async Task ShowAsync(
+        string message,
+        bool isSuccess,
+        CancellationToken cancellationToken)
+    {
+        // Animate the existing alert out if it's visible
+        if (IsVisible)
+        {
+            IsClosing = true;
+            StateHasChanged();
+
+            await Task.Delay(300, cancellationToken);
+        }
+
+        Message = message;
+        IsSuccess = isSuccess;
+        IsVisible = true;
+        IsClosing = true;
+
+        StateHasChanged();
+
+        // Allow collapsed state to render
+        await Task.Delay(20, cancellationToken);
+
+        // Animate in
+        IsClosing = false;
+        StateHasChanged();
+
+        await StartDismissTimer(cancellationToken);
+    }
+
+    private async Task StartDismissTimer(CancellationToken cancellationToken)
+    {
+        // <= 0 means the alert remains until manually closed.
+        if (DismissAfter <= 0)
+            return;
+
+        // Timed alerts remain visible for at least 2 seconds.
+        var delay = Math.Max(DismissAfter, 2000);
+
+        try
+        {
+            await Task.Delay(delay, cancellationToken);
+
+            if (!cancellationToken.IsCancellationRequested)
+                await Close();
+        }
+        catch (TaskCanceledException)
+        {
+            // The timer was cancelled because the alert was
+            // closed or replaced with another message.
+        }
+    }
+
+    private async Task Close()
+    {
+        if (IsClosing || !IsVisible)
+            return;
+
+        // Stop the current auto-dismiss timer.
+        _dismissCancellation?.Cancel();
+
+        // Animate closed.
+        IsClosing = true;
+        StateHasChanged();
+
+        await Task.Delay(300);
+
+        // Remove the alert.
+        IsVisible = false;
+        StateHasChanged();
+    }
+}

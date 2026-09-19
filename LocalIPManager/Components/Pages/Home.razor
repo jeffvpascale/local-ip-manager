@@ -1,0 +1,595 @@
+@page "/"
+
+@using LocalIPManager.Components.Controls
+@using LocalIPManager.Models
+@using LocalIPManager.Services
+@using Microsoft.AspNetCore.Components.QuickGrid
+
+@rendermode InteractiveServer
+
+@inject DeviceService DeviceService
+@inject DeviceImportExportService DeviceImportExportService
+@inject NetworkScannerService NetworkScannerService
+@inject ILogger<Home> Logger
+@inject IJSRuntime JSRuntime
+
+@if (_showDeviceModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60 p-4">
+        <AddEditDeviceComponent DeviceListItem="@_selectedDevice"
+                        OnCancel="@HandleAddEditComponentCancel"
+                        OnValidSubmit="@HandleAddEditComponentValidSubmit" />
+    </div>
+}
+@if (_deviceToDelete != null)
+{
+    <ConfirmationModalComponent
+        Title="Delete Device"
+        Message="@($"Are you sure you want to delete {_deviceToDelete.Name}?")"
+        ConfirmText="Delete"
+        OnConfirm="@ConfirmDelete"
+        OnCancel="@CancelDelete" />
+}
+@if (_isScanning)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60">
+        <div class="rounded-2xl bg-surface p-8 shadow-xl">
+            <div class="flex items-center gap-4">
+                <i class="icon icon-loader-circle animate-spin !text-3xl text-primary"></i>
+
+                <div>
+                    <h3 class="font-bold text-heading">
+                        Scanning Network
+                    </h3>
+                    <p class="text-sm text-body">
+                        Looking for devices on your local network...
+                    </p>
+
+                </div>
+            </div>
+        </div>
+    </div>
+}
+<div class="print-page min-h-screen bg-page p-6 text-body">
+
+    <div class="print-container mx-auto max-w-[1500px] rounded-2xl bg-surface p-2 text-body shadow-sm">
+        <!-- PAGE CONTAINER -->
+        <div class="mx-auto max-w-7xl py-8">
+            <!-- ========================================
+                 HEADER
+                 ======================================== -->
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+
+                <!-- Header: Title -->
+                <div class="flex items-center gap-5">
+                    <div class="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                        <i class="icon icon-router !text-4xl text-primary"></i>
+                    </div>
+
+                    <div>
+                        <h1 class="text-4xl font-bold tracking-tight text-heading">
+                            Local IP Manager
+                        </h1>
+
+                        <p class="mt-1 text-xl text-body">
+                            Manage devices and IP reservations on your network.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Header: Buttons -->
+                <div class="no-print flex items-center gap-3 pt-5 lg:pt-0">
+
+                    <button class="flex cursor-pointer items-center gap-2
+                        rounded-lg border border-secondary-hover
+                        px-4 py-2
+                        transition
+                        hover:bg-secondary
+                        active:scale-[.98]"
+                        @onclick="ScanNetwork">
+                        <i class="icon icon-refresh-cw !text-2xl"></i>
+                        Scan Network
+                    </button>
+
+                    <button class="flex cursor-pointer items-center gap-2
+                        rounded-lg bg-primary
+                        px-4 py-2 text-surface
+                        transition
+                        hover:bg-primary-hover
+                        active:scale-[.98]"
+                        @onclick="AddDevice">
+                        <i class="icon icon-plus !text-2xl"></i>
+                        Add Device
+                    </button>
+
+                </div>
+            </div>
+
+
+            <!-- ========================================
+                 SEARCH AND FILTERS
+                 ======================================== -->
+            <div class="mt-8 flex flex-col gap-3 md:flex-row md:items-center">
+
+                <!-- Search -->
+                <div class="no-print relative w-full max-w-[500px]">
+                    <i class="icon icon-search absolute top-1/2 left-3 -translate-y-1/2 !text-xl text-body"></i>
+
+                    <input type="text"
+                           placeholder="Search devices..."
+                           class="w-full rounded-lg border border-secondary-hover bg-surface
+                               py-2 pr-4 pl-10 text-body placeholder:text-body/60
+                               focus:border-primary
+                               focus:ring-2
+                               focus:ring-primary/20
+                               focus:outline-none"
+                           @bind="_searchString"
+                           @bind:event="oninput"
+                           @bind:after="ApplySearch"/>
+                </div>
+
+                <div class="no-print flex flex-wrap gap-2">
+                    <button type="button"
+                            class="flex cursor-pointer items-center gap-2 rounded-lg border border-secondary-hover px-4 py-2 transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled="@(_isImporting || _isExporting)"
+                            @onclick="PrintDevices">
+                        <i class="icon icon-printer !text-xl"></i>
+                        Print
+                    </button>
+                    <button type="button"
+                            class="flex cursor-pointer items-center gap-2 rounded-lg border border-secondary-hover px-4 py-2 transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled="@(_isImporting || _isExporting)"
+                            @onclick="ExportDevices">
+                        <i class="icon icon-download !text-xl"></i>
+                        Export
+                    </button>
+
+                    <button type="button"
+                            class="flex cursor-pointer items-center gap-2 rounded-lg border border-secondary-hover px-4 py-2 transition hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled="@(_isImporting || _isExporting)"
+                            @onclick="OpenImportPicker">
+                        <i class="icon icon-upload !text-xl"></i>
+                        Import
+                    </button>
+
+                    <InputFile id="device-import-file"
+                               class="hidden"
+                               accept=".json,application/json"
+                               OnChange="ImportDevices" />
+                </div>
+
+                <div class="text-body md:ml-auto">
+                    @_totalDeviceCount devices
+                </div>
+            </div>
+
+            <div class="no-print">
+                <AlertMessageComponent @ref="_alert" />
+            </div>
+
+            <!-- ========================================
+                 DEVICE TABLE
+                 ======================================== -->
+            <div class="print-table mt-6 overflow-x-auto rounded-xl border border-secondary bg-surface">
+
+                <QuickGrid Items="@_queryableDeviceList"
+                    Class="device-grid w-full min-w-[1100px]">
+
+                    <!-- Device Information -->
+                    <PropertyColumn Property="@(d => d.Name)"
+                                    Title="Name"
+                                    Sortable="true" 
+                                    Class="name-column"/>
+
+                    <PropertyColumn Property="@(d => d.Description)"
+                                    Title="Description"
+                                    Sortable="true"/>
+
+                    <TemplateColumn Title="IP Address"
+                                    Sortable="true"
+                                    SortBy="_ipAddressSort"
+                                    IsDefaultSortColumn="true"
+                                    InitialSortDirection="SortDirection.Ascending">
+                        @context.IpAddress
+                    </TemplateColumn>
+
+                    <PropertyColumn Property="@(d => d.MacAddress)"
+                                    Title="MAC Address"
+                                    Sortable="true" />
+
+                    <!-- Database Status -->
+                    <TemplateColumn 
+                        Title="Saved"
+                        Align="Align.Center" 
+                        Sortable="true"
+                        SortBy="_databaseSort">
+                        @if (context.IsInDatabase)
+                        {
+                            <span class="inline-flex items-center gap-1 rounded-lg bg-success-bg px-3 py-1 text-success-text">
+                                <i class="icon icon-database !text-base"></i>
+                                Yes
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="inline-flex items-center gap-1 rounded-lg bg-error-bg px-3 py-1 text-error-text">
+                                <i class="icon icon-database !text-base"></i>
+                                No
+                            </span>
+                        }
+                    </TemplateColumn>
+
+                    <!-- Device Status -->
+                    <TemplateColumn 
+                        Title="Static"
+                        Align="Align.Center"
+                        Sortable="true"
+                        SortBy="_staticSort">
+                        <div class="flex justify-center">
+                            @if (context.IsStatic)
+                            {
+                                <span class="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-surface">
+                                    <i class="icon icon-check !text-base"></i>
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="block h-6 w-6 rounded-md border-2 border-secondary-hover"></span>
+                            }
+                        </div>
+                    </TemplateColumn>
+
+                    <!-- Reservation Status -->
+                    <TemplateColumn 
+                        Title="Reserved" 
+                        Align="Align.Center"
+                        Sortable="true"
+                        SortBy="_reservedSort">
+                        <div class="flex justify-center">
+                            @if (context.IsReserved)
+                            {
+                                <span class="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-surface">
+                                    <i class="icon icon-check !text-base"></i>
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="block h-6 w-6 rounded-md border-2 border-secondary-hover"></span>
+                            }
+                        </div>
+                    </TemplateColumn>
+
+                    <!-- Actions -->
+                    <TemplateColumn Title="Actions">
+                        <div class="flex items-center gap-2">
+                            @if (context.IsInDatabase)
+                            {
+                                <button type="button"
+                                        class="flex h-9 w-9 cursor-pointer items-center justify-center
+                                               rounded-lg bg-secondary transition
+                                               hover:bg-secondary-hover"
+                                        @onclick="() => EditDevice(context)">
+                                    <i class="icon icon-pencil !text-lg text-primary"></i>
+                                </button>
+
+                                <button type="button"
+                                        class="flex h-9 w-9 cursor-pointer items-center justify-center
+                                               rounded-lg bg-secondary transition
+                                               hover:bg-secondary-hover"
+                                        @onclick="() => DeleteDevice(context.ToDevice())">
+                                    <i class="icon icon-trash-2 !text-lg text-danger"></i>
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button"
+                                        class="flex h-9 w-9 cursor-pointer items-center justify-center
+                                               rounded-lg border border-success-border bg-success-bg
+                                               text-success-text transition hover:bg-success-border"
+                                        @onclick="() => AddScannedDevice(context)">
+                                    <i class="icon icon-plus !text-xl"></i>
+                                </button>
+                            }
+                        </div>
+                    </TemplateColumn>
+
+                </QuickGrid>
+
+            </div>
+
+            <div class="pt-5 text-sm text-body">
+                Showing @_queryableDeviceList?.Count() of @_totalDeviceCount devices
+            </div>
+        </div>
+    </div>
+</div>
+
+<button type="button"
+        class="no-print fixed right-4 bottom-4 z-40
+               flex h-11 w-11 cursor-pointer items-center justify-center
+               rounded-full border border-secondary-hover
+               bg-surface text-body shadow-lg
+               transition hover:bg-secondary active:scale-[.98]"
+        title="@ThemeToggleLabel"
+        aria-label="@ThemeToggleLabel"
+        @onclick="ToggleTheme">
+    <i class="icon @(_isDarkMode ? "icon-sun" : "icon-moon") !text-xl"></i>
+</button>
+
+@code{
+    // Device List
+    private IQueryable<DeviceListItem>? _queryableDeviceList;
+    private List<DeviceListItem> _deviceList = [];
+    private string _searchString = "";
+    private int _totalDeviceCount;
+    private bool _isDarkMode;
+
+    private string ThemeToggleLabel =>
+        _isDarkMode ? "Switch to light mode" : "Switch to dark mode";
+
+    // Device Modal
+    private bool _showDeviceModal;
+    private DeviceListItem? _selectedDevice;
+
+    // Delete Confirmation
+    private Device? _deviceToDelete;
+
+    // Alert
+    private AlertMessageComponent? _alert;
+
+    // Network Scan
+    private List<NetworkScanResult> _scanResults = [];
+    private bool _isScanning;
+    private bool _isImporting;
+    private bool _isExporting;
+
+    private const long MaxImportFileSize = 5 * 1024 * 1024;
+
+    // Grid Sorting
+    private static readonly GridSort<DeviceListItem> _databaseSort =
+        GridSort<DeviceListItem>.ByAscending(device => device.IsInDatabase);
+
+    private static readonly GridSort<DeviceListItem> _ipAddressSort =
+        GridSort<DeviceListItem>.ByAscending(device => device.IpAddressSortKey);
+
+    private static readonly GridSort<DeviceListItem> _staticSort =
+        GridSort<DeviceListItem>.ByAscending(device => device.IsStatic);
+
+    private static readonly GridSort<DeviceListItem> _reservedSort =
+        GridSort<DeviceListItem>.ByAscending(device => device.IsReserved);
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        if (RendererInfo.IsInteractive)
+        {
+            await LoadDevices();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _isDarkMode = await JSRuntime.InvokeAsync<bool>("localIpTheme.isDark");
+        StateHasChanged();
+    }
+
+    private async Task ToggleTheme()
+    {
+        _isDarkMode = await JSRuntime.InvokeAsync<bool>("localIpTheme.toggle");
+    }
+
+    private async Task LoadDevices()
+    {
+        var devices = await DeviceService.GetAllDevicesAsync();
+
+        var deviceList = devices
+            .Select(device => DeviceListItem.FromDevice(device))
+            .ToList();
+
+        foreach (var scanResult in _scanResults)
+        {
+            var existingDevice = deviceList.FirstOrDefault(device =>
+                device.IpAddress == scanResult.IpAddress);
+
+            if (existingDevice != null)
+                continue;
+
+            deviceList.Add(DeviceListItem.FromScanResult(scanResult));
+        }
+
+        _deviceList = deviceList;
+        ApplySearch();
+
+        _totalDeviceCount = deviceList.Count;
+    }
+
+    private void ApplySearch()
+    {
+        var devices = _deviceList.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(_searchString))
+        {
+            devices = devices.Where(device =>
+                (device.Name?.Contains(
+                    _searchString,
+                    StringComparison.OrdinalIgnoreCase) ?? false) ||
+
+                (device.Description?.Contains(
+                    _searchString,
+                    StringComparison.OrdinalIgnoreCase) ?? false) ||
+
+                device.IpAddress.Contains(
+                    _searchString,
+                    StringComparison.OrdinalIgnoreCase) ||
+
+                (device.MacAddress?.Contains(
+                    _searchString,
+                    StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        _queryableDeviceList = devices.AsQueryable();
+    }
+
+    private Task PrintDevices()
+    {
+        return JSRuntime.InvokeVoidAsync("deviceTransfer.printPage").AsTask();
+    }
+    private async Task ExportDevices()
+    {
+        if (_isExporting || _isImporting)
+            return;
+
+        _isExporting = true;
+
+        try
+        {
+            var json = await DeviceImportExportService.ExportAsync();
+            var fileName = $"local-ip-manager-{DateTime.Now:yyyy-MM-dd}.json";
+            await JSRuntime.InvokeVoidAsync("deviceTransfer.downloadJson", fileName, json);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Device export failed.");
+            _alert?.Show("Unable to export devices. Please try again.", false);
+        }
+        finally
+        {
+            _isExporting = false;
+        }
+    }
+
+    private Task OpenImportPicker()
+    {
+        return JSRuntime.InvokeVoidAsync(
+            "deviceTransfer.openFilePicker",
+            "device-import-file").AsTask();
+    }
+
+    private async Task ImportDevices(InputFileChangeEventArgs args)
+    {
+        if (_isImporting || _isExporting)
+            return;
+
+        _isImporting = true;
+
+        try
+        {
+            await using var stream = args.File.OpenReadStream(MaxImportFileSize);
+            var result = await DeviceImportExportService.ImportAsync(stream);
+
+            await LoadDevices();
+
+            var message = $"{result.ImportedCount} imported, " +
+                          $"{result.DuplicateCount} duplicates skipped, " +
+                          $"{result.InvalidCount} invalid skipped.";
+            _alert?.Show(message, result.InvalidCount == 0);
+        }
+        catch (InvalidDataException ex)
+        {
+            _alert?.Show(ex.Message, false);
+        }
+        catch (IOException)
+        {
+            _alert?.Show("The selected import file is too large or could not be read.", false);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Device import failed.");
+            _alert?.Show("Unable to import devices. Please check the file and try again.", false);
+        }
+        finally
+        {
+            _isImporting = false;
+        }
+    }
+    private void AddDevice()
+    {
+        _selectedDevice = null;
+        _showDeviceModal = true;
+    }
+
+    private void EditDevice(DeviceListItem device)
+    {
+        _selectedDevice = device;
+        _showDeviceModal = true;
+    }
+
+    private void AddScannedDevice(DeviceListItem device)
+    {
+        _selectedDevice = device;
+        _showDeviceModal = true;
+    }
+
+    private void HandleAddEditComponentCancel()
+    {
+        _selectedDevice = null;
+        _showDeviceModal = false;
+    }
+    private async Task HandleAddEditComponentValidSubmit((bool Success, string Message) response)
+    {
+        _selectedDevice = null;
+        _showDeviceModal = false;
+
+        await LoadDevices();
+
+        _alert?.Show(response.Message, response.Success);
+    }
+
+    private void DeleteDevice(Device device)
+    {
+        _deviceToDelete = device;
+    }
+
+    private void CancelDelete()
+    {
+        _deviceToDelete = null;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (_deviceToDelete == null)
+            return;
+
+        var response =
+            await DeviceService.DeleteDeviceAsync(_deviceToDelete.Id);
+
+        if (!response.Success)
+        {
+            _alert?.Show(response.Message, response.Success);
+            return;
+        }
+
+        _deviceToDelete = null;
+
+        _alert?.Show("Device deleted successfully.",true);
+        await LoadDevices();
+    }
+
+   private async Task ScanNetwork()
+    {
+        if (_isScanning)
+            return;
+
+        _isScanning = true;
+
+        try
+        {
+            _scanResults = await NetworkScannerService.ScanAsync();
+            await LoadDevices();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Network scan failed.");
+            _alert?.Show("Unable to complete the network scan. Please try again.", false);
+        }
+        finally
+        {
+            _isScanning = false;
+        }
+    }
+}

@@ -1,0 +1,124 @@
+/* CSS for Home component */
+::deep .device-grid thead {
+    background-color: var(--color-secondary);
+}
+
+::deep .device-grid th {
+    padding: 1rem;
+    color: var(--color-body);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: left;
+}
+
+::deep .device-grid tbody tr {
+    border-bottom: 1px solid var(--color-secondary-hover);
+    height: 76px;
+}
+
+::deep .device-grid tbody tr:last-child {
+    border-bottom: none;
+}
+
+::deep .device-grid td {
+    padding: 1rem;
+    vertical-align: middle;
+}
+
+::deep .device-grid td.name-column {
+    padding-left: 1.5rem;
+}
+
+/* Sortable header button */
+::deep .device-grid th button.col-title {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+::deep .device-grid th button.col-title:hover {
+    background: transparent;
+}
+
+/* Reset QuickGrid's built-in indicator */
+::deep .device-grid .sort-indicator {
+    background: none;
+    width: auto;
+    height: auto;
+    margin-left: 0.4rem;
+    transform: none;
+}
+
+/* Sortable but not currently sorted */
+::deep .device-grid .sort-indicator::after {
+    content: "↕";
+    color: color-mix(in srgb, var(--color-body) 60%, var(--color-surface));
+    font-size: 0.9rem;
+}
+
+/* Ascending */
+::deep .device-grid th[aria-sort="ascending"] .sort-indicator::after {
+    content: "▲";
+    color: var(--color-body);
+    font-size: 0.7rem;
+}
+
+/* Descending */
+::deep .device-grid th[aria-sort="descending"] .sort-indicator::after {
+    content: "▼";
+    color: var(--color-body);
+    font-size: 0.7rem;
+}
+
+@media print {
+    @page {
+        size: landscape;
+        margin: 0.5in;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    .print-page {
+        min-height: auto;
+        padding: 0;
+        background: var(--color-surface);
+    }
+
+    .print-container {
+        max-width: none;
+        padding: 0;
+        box-shadow: none;
+    }
+
+    .print-table {
+        overflow: visible;
+        border-color: var(--color-secondary-hover);
+    }
+
+    ::deep .device-grid {
+        min-width: 0 !important;
+        font-size: 9pt;
+    }
+
+    ::deep .device-grid th,
+    ::deep .device-grid td {
+        padding: 0.4rem;
+    }
+
+    ::deep .device-grid tbody tr {
+        height: auto;
+        break-inside: avoid;
+    }
+
+    ::deep .device-grid th:last-child,
+    ::deep .device-grid td:last-child {
+        display: none;
+    }
+}

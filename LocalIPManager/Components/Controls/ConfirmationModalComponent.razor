@@ -1,0 +1,45 @@
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-overlay/60 p-4">
+    <div class="w-full max-w-md rounded-2xl bg-surface p-6 shadow-xl">
+
+        <h3 class="text-2xl font-bold text-heading">
+            @Title
+        </h3>
+
+        <p class="mt-2 text-body">
+            @Message
+        </p>
+
+        <div class="mt-6 flex justify-end gap-3">
+            <button type="button"
+                    @onclick="OnCancel"
+                    class="cursor-pointer rounded-lg border border-secondary-hover
+                           bg-surface px-4 py-2 hover:bg-secondary-hover">
+                Cancel
+            </button>
+
+            <button type="button"
+                    @onclick="OnConfirm"
+                    class="cursor-pointer rounded-lg bg-danger px-4 py-2 text-surface">
+                @ConfirmText
+            </button>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Confirm";
+
+    [Parameter]
+    public string Message { get; set; } = "";
+
+    [Parameter]
+    public string ConfirmText { get; set; } = "Confirm";
+
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+}

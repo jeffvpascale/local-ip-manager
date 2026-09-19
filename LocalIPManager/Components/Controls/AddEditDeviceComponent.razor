@@ -1,0 +1,201 @@
+@using LocalIPManager.Models
+@using LocalIPManager.Services
+
+@rendermode InteractiveServer
+
+@inject NavigationManager NavigationManager
+@inject DeviceService DeviceService
+
+@if (_isLoading)
+{
+    <div class="w-full max-w-2xl rounded-2xl bg-surface p-5 text-body" role="status">
+        Loading device...
+    </div>
+}
+else if (_device is null)
+{
+    <div class="w-full max-w-2xl rounded-2xl bg-surface p-5 text-body">
+        <p role="alert">This device no longer exists. Close this window and refresh the device list.</p>
+        <button type="button"
+                class="mt-4 rounded-lg border border-secondary-hover px-4 py-2"
+                @onclick="OnCancel">
+            Close
+        </button>
+    </div>
+}
+else
+{
+    <EditForm Model="@_device" OnValidSubmit="@HandleValidSubmit" class="w-full max-w-2xl rounded-2xl bg-surface p-5 text-body">
+        <div class="mb-5 flex gap-5">
+            <div class="inline-flex size-12 items-center justify-center rounded-full bg-primary">
+                <i class="icon icon-plus !text-3xl text-surface"></i>
+            </div>
+            <div>
+                <h3 class="text-4xl font-bold tracking-tight text-heading">
+                    @_actionText Device
+                </h3>
+                <p class="mt-1 text-sm text-body">
+                    @_actionText a device to your local network and keep track of its details
+                </p>
+            </div>
+        </div>
+
+        <AlertMessageComponent @ref="_alert" />
+
+        <DataAnnotationsValidator />
+        <div class="mb-4">
+            <label for="deviceName" class="mb-2 block text-sm font-bold text-body">
+                Name
+            </label>
+            <InputText @bind-Value="_device.Name" id="deviceName" placeholder="e.g. NAS, Printer, Living Room TV" class="w-full appearance-none rounded border border-secondary-hover bg-surface px-3 py-2 leading-tight text-body placeholder:text-body/60 shadow focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"></InputText>
+            <ValidationMessage For="() => _device.Name" class="text-danger"></ValidationMessage>
+        </div>
+        <div class="mb-4">
+            <label for="description" class="mb-2 block text-sm font-bold text-body">
+                Description (optional)
+            </label>
+            <InputTextArea @bind-Value="_device.Description" id="description" placeholder="e.g. Downstairs printer." class="w-full appearance-none rounded border border-secondary-hover bg-surface px-3 py-2 leading-tight text-body placeholder:text-body/60 shadow focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"></InputTextArea>
+            <ValidationMessage For="() => _device.Description" class="text-danger"></ValidationMessage>
+        </div>
+        <div class="mb-4 flex flex-col justify-normal gap-5 sm:flex-row">
+            <div class="flex-1">
+                <label for="ipAddress" class="mb-2 block text-sm font-bold text-body">
+                    IP Address
+                </label>
+                <InputText @bind-Value="_device.IpAddress" id="ipAddress" placeholder="e.g. 192.168.1.23" class="w-full appearance-none rounded border border-secondary-hover bg-surface px-3 py-2 leading-tight text-body placeholder:text-body/60 shadow focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"></InputText>
+                <ValidationMessage For="() => _device.IpAddress" class="text-danger"></ValidationMessage>
+            </div>
+            <div class="flex-1">
+                <label for="ipAddress" class="mb-2 block text-sm font-bold text-body">
+                    MAC Address
+                </label>
+                <InputText @bind-Value="_device.MacAddress" id="macAddress" placeholder="e.g. 00:1A:2B:3C:4D:5E" class="w-full appearance-none rounded border border-secondary-hover bg-surface px-3 py-2 leading-tight text-body placeholder:text-body/60 shadow focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"></InputText>
+                <ValidationMessage For="() => _device.MacAddress" class="text-danger"></ValidationMessage>
+            </div>
+        </div>
+        <div class="mb-10 flex flex-row justify-end gap-5">
+            <div class="flex gap-8">
+                <div class="flex items-center gap-2">
+                    <InputCheckbox @bind-Value="_device.IsReserved"
+                                    id="isReserved"
+                                    class="h-4 w-4 rounded border-secondary text-primary" />
+                    <label for="isReserved" class="text-sm font-medium text-body">
+                        Reserved
+                    </label>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <InputCheckbox @bind-Value="_device.IsStatic"
+                                    id="isStatic"
+                                    class="h-4 w-4 rounded border-secondary text-primary" />
+                    <label for="isStatic" class="text-sm font-medium text-body">
+                        Static
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+            <button
+                type="button"
+                class="flex cursor-pointer items-center gap-2
+                rounded-lg border border-secondary-hover bg-surface
+                px-4 py-2
+                transition
+                hover:bg-secondary-hover
+                active:scale-[.98]"
+                @onclick="OnCancel">
+                Cancel
+            </button>
+
+            <button
+                type="submit"
+                class="flex cursor-pointer items-center gap-2
+                rounded-lg bg-primary
+                px-4 py-2 text-surface
+                transition
+                hover:bg-primary-hover
+                active:scale-[.98]">
+                <i class="icon icon-save !text-2xl"></i>
+                @_actionText Device
+            </button>
+        </div>
+
+    </EditForm>
+}
+
+@code {
+
+    [Parameter]
+    public DeviceListItem? DeviceListItem { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    [Parameter]
+    public EventCallback<(bool Success, string Message)> OnValidSubmit { get; set; }
+
+    private Device? _device { get; set; }
+    private bool _isLoading;
+
+    private AlertMessageComponent? _alert;
+
+    private string _actionText = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (DeviceListItem?.IsInDatabase == true)
+        {
+            // Existing database device: load it for editing.
+            _isLoading = true;
+            _device = null;
+            try
+            {
+                _device = await DeviceService.GetDeviceAsync(
+                    DeviceListItem.DeviceId!.Value);
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+
+            _actionText = "Update";
+        }
+        else if (DeviceListItem != null)
+        {
+            // Scanned device: prepopulate a new Device.
+            _device = DeviceListItem.ToDevice();
+
+            _actionText = "Add";
+        }
+        else
+        {
+            // Normal Add Device.
+            _device = new Device
+            {
+                Name = "",
+                IpAddress = ""
+            };
+
+            _actionText = "Add";
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (_device == null)
+            return;
+
+        var response = DeviceListItem?.IsInDatabase == true
+            ? await DeviceService.UpdateDeviceAsync(_device)
+            : await DeviceService.AddDeviceAsync(_device);
+
+        if (!response.Success)
+        {
+            _alert?.Show(response.Message, false);
+            return;
+        }
+
+        await OnValidSubmit.InvokeAsync(response);
+    }
+}
