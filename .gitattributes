@@ -62,3 +62,12 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+###############################################################################
+# GitHub Linguist - exclude generated files from language statistics
+###############################################################################
+*.min.css linguist-generated=true
+*.min.js linguist-generated=true
+LocalIPManager/Styles/tailwind.output.css linguist-generated=true
+LocalIPManager/wwwroot/css/tailwind.css linguist-generated=true
+*.razor linguist-language=C#
